@@ -1,0 +1,27 @@
+{
+  "name": "courtside-server",
+  "version": "1.0.0",
+  "description": "CourtSide sports equipment booking API (Express + PostgreSQL)",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "migrate": "node src/migrate.js",
+    "seed": "node src/seed.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.1",
+    "node-cron": "^3.0.3",
+    "pg": "^8.12.0",
+    "pg-mem": "^3.0.14"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  }
+}
