@@ -3,18 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import api from '../api.js';
 import { errorMessage } from '../hooks.js';
+import { isStrongPassword, PASSWORD_RULES } from '../passwordRules.js';
 
 const ROLES = [
   { key: 'Student', icon: '🎓' },
   { key: 'Admin', icon: '🛡️' },
-];
-
-const PASSWORD_RULES = [
-  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
-  { label: 'One uppercase letter', test: (value) => /[A-Z]/.test(value) },
-  { label: 'One lowercase letter', test: (value) => /[a-z]/.test(value) },
-  { label: 'One number', test: (value) => /\d/.test(value) },
-  { label: 'One special character', test: (value) => /[^A-Za-z0-9\s]/.test(value) },
 ];
 
 export default function LoginPage() {
@@ -33,7 +26,7 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
-  const passwordIsStrong = PASSWORD_RULES.every(({ test }) => test(password));
+  const passwordIsStrong = isStrongPassword(password);
 
   async function handleLogin(e) {
     e.preventDefault();

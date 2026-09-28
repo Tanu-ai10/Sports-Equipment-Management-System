@@ -174,26 +174,43 @@ router.post('/verify-email', async (req, res) => {
 });
 
 // POST /api/auth/forgot-password
-// Demo implementation: generates a reset token and returns it directly instead of emailing it.
-// In production, swap the response for an email send (e.g. via SES/SendGrid) and never return
-// the token in the API response.
 router.post('/forgot-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'email is required.' });
   if (typeof email !== 'string' || !EMAIL_PATTERN.test(email.trim())) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'Password reset email is unavailable. Please try again later.' });
+  }
+
+  const genericMessage = 'If an account exists for that email, a password reset link has been sent.';
   try {
     const result = await db.query('SELECT UserID FROM Users WHERE Email = $1', [email.trim()]);
-    if (result.rowCount === 0) {
-      // Don't reveal whether the email exists.
-      return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+    if (result.rowCount === 0) return res.json({ message: genericMessage });
+
+    const resetToken = jwt.sign(
+      { userId: result.rows[0].userid, purpose: 'password-reset' },
+      process.env.JWT_SECRET,
+      { expiresIn: '30m' }
+    );
+    const resetUrl = new URL(
+      '/reset-password',
+      process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || 'http://localhost:5173'
+    );
+    resetUrl.searchParams.set('token', resetToken);
+
+    try {
+      await sendEmail({
+        to: email.trim(),
+        subject: 'Reset your CourtSide password',
+        text: `A password reset was requested for your CourtSide account.\n\nSet a new password using this link:\n${resetUrl.toString()}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
+      });
+    } catch (emailError) {
+      console.error('Password reset email delivery failed:', emailError.message);
     }
-    const resetToken = jwt.sign({ userId: result.rows[0].userid, purpose: 'password-reset' }, process.env.JWT_SECRET, { expiresIn: '30m' });
-    res.json({
-      message: 'If that email is registered, a reset link has been sent.',
-      devResetToken: resetToken, // remove this field once real email delivery is wired up
-    });
+
+    res.json({ message: genericMessage });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not process the request.' });

@@ -4,6 +4,7 @@ import LoginPage from './pages/LoginPage.jsx';
 import StudentDashboard from './pages/StudentDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import VerifyEmailPage from './pages/VerifyEmailPage.jsx';
+import ResetPasswordPage from './pages/ResetPasswordPage.jsx';
 
 function RequireRole({ role, children }) {
   const { user } = useAuth();
@@ -23,6 +24,7 @@ export default function App() {
       <Route path="/student" element={<RequireRole role="Student"><StudentDashboard /></RequireRole>} />
       <Route path="/admin" element={<RequireRole role="Admin"><AdminDashboard /></RequireRole>} />
       <Route path="/verify-email" element={<VerifyEmailPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="*" element={<Navigate to={user ? homeFor(user) : '/login'} replace />} />
     </Routes>
   );
