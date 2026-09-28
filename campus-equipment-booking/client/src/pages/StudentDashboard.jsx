@@ -12,10 +12,11 @@ const TABS = [['catalog', 'Catalog'], ['mybookings', 'My Bookings'], ['fines', '
 export default function StudentDashboard() {
   const [tab, setTab] = useState('catalog');
   const [equipment, setEquipment] = useState([]);
+  const [equipmentOptions, setEquipmentOptions] = useState([]);
   const [bookings, setBookings] = useState([]);
   const [fines, setFines] = useState({ fines: [], total: 0 });
   const [notifications, setNotifications] = useState([]);
-  const [filters, setFilters] = useState({ sport: '', name: '', availability: '', popular: false });
+  const [filters, setFilters] = useState({ sport: '', equipmentId: '', availability: '', popular: false });
   const [bookingModalEq, setBookingModalEq] = useState(null);
   const [damageModalBooking, setDamageModalBooking] = useState(null);
   const [toast, showToast] = useToast();
@@ -23,7 +24,7 @@ export default function StudentDashboard() {
   const loadEquipment = useCallback(async () => {
     const params = {};
     if (filters.sport) params.sport = filters.sport;
-    if (filters.name) params.name = filters.name;
+    if (filters.equipmentId) params.equipmentId = filters.equipmentId;
     if (filters.availability) params.availability = filters.availability;
     if (filters.popular) params.popular = 'true';
     const res = await api.get('/equipment', { params });
@@ -44,6 +45,20 @@ export default function StudentDashboard() {
   }, []);
 
   useEffect(() => { loadEquipment(); }, [loadEquipment]);
+  useEffect(() => {
+    let cancelled = false;
+    const params = filters.sport ? { sport: filters.sport } : {};
+
+    api.get('/equipment', { params })
+      .then((res) => {
+        if (!cancelled) setEquipmentOptions(res.data);
+      })
+      .catch(() => {
+        if (!cancelled) setEquipmentOptions([]);
+      });
+
+    return () => { cancelled = true; };
+  }, [filters.sport]);
   useEffect(() => { loadBookings(); loadFines(); loadNotifications(); }, [loadBookings, loadFines, loadNotifications]);
 
   async function refreshAll() {
@@ -98,7 +113,7 @@ export default function StudentDashboard() {
   return (
     <Shell tabs={TABS} activeTab={tab} onTabChange={setTab} badges={{ notifications: unreadCount }}>
       {tab === 'catalog' && (
-        <CatalogTab equipment={equipment} filters={filters} setFilters={setFilters} onBook={setBookingModalEq} />
+        <CatalogTab equipment={equipment} equipmentOptions={equipmentOptions} filters={filters} setFilters={setFilters} onBook={setBookingModalEq} />
       )}
       {tab === 'mybookings' && (
         <MyBookingsTab bookings={bookings} onCancel={cancelBooking} onReportDamage={setDamageModalBooking} />
@@ -117,18 +132,21 @@ export default function StudentDashboard() {
   );
 }
 
-function CatalogTab({ equipment, filters, setFilters, onBook }) {
+function CatalogTab({ equipment, equipmentOptions, filters, setFilters, onBook }) {
   return (
     <>
       <div className="section-head">
         <div><h2>Equipment Catalog</h2><div className="section-sub">Browse and book gear for practice, tournaments or events.</div></div>
       </div>
       <div className="filter-bar">
-        <select className="grow" value={filters.sport} onChange={(e) => setFilters((f) => ({ ...f, sport: e.target.value }))}>
+        <select className="grow" value={filters.sport} onChange={(e) => setFilters((f) => ({ ...f, sport: e.target.value, equipmentId: '' }))}>
           <option value="">All sports</option>
           {SPORTS.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
-        <input className="grow" placeholder="Search equipment name…" value={filters.name} onChange={(e) => setFilters((f) => ({ ...f, name: e.target.value }))} />
+        <select className="grow" value={filters.equipmentId} onChange={(e) => setFilters((f) => ({ ...f, equipmentId: e.target.value }))}>
+          <option value="">All equipment</option>
+          {equipmentOptions.map((eq) => <option key={eq.equipmentid} value={eq.equipmentid}>{eq.name}</option>)}
+        </select>
         <select value={filters.availability} onChange={(e) => setFilters((f) => ({ ...f, availability: e.target.value }))}>
           <option value="">Any availability</option>
           <option value="available">Available only</option>

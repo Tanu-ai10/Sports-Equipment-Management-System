@@ -10,7 +10,7 @@ DROP TYPE IF EXISTS booking_purpose CASCADE;
 DROP TYPE IF EXISTS damage_status CASCADE;
 DROP TYPE IF EXISTS fine_reason CASCADE;
 
-CREATE TYPE user_role AS ENUM ('Student', 'Coordinator', 'Admin');
+CREATE TYPE user_role AS ENUM ('Student', 'Admin');
 CREATE TYPE equipment_status AS ENUM ('Available', 'Limited', 'Unavailable', 'Maintenance');
 CREATE TYPE booking_status AS ENUM ('Pending', 'Approved', 'Rejected', 'Issued', 'Returned', 'Cancelled', 'Overdue');
 CREATE TYPE booking_purpose AS ENUM ('Practice', 'Tournament', 'Event');
@@ -28,6 +28,7 @@ CREATE TABLE Users (
   Role          user_role NOT NULL DEFAULT 'Student',
   Department    VARCHAR(120),
   Phone         VARCHAR(20),
+  EmailVerified BOOLEAN NOT NULL DEFAULT TRUE,
   CreatedAt     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

@@ -1,14 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
-import Shell from '../components/Shell.jsx';
 import ReturnModal from '../components/ReturnModal.jsx';
 import { StatusTag, EmptyState, Toast, fmtDate } from '../components/Shared.jsx';
 import { useToast, errorMessage } from '../hooks.js';
 import api from '../api.js';
 
-const TABS = [['requests', 'Requests'], ['today', "Today's Bookings"], ['due', 'Due Today'], ['overdue', 'Overdue'], ['damage', 'Damage Reports']];
-
-export default function CoordinatorDashboard() {
-  const [tab, setTab] = useState('requests');
+export default function CoordinatorDashboard({ tab }) {
   const [pending, setPending] = useState([]);
   const [today, setToday] = useState([]);
   const [due, setDue] = useState([]);
@@ -60,7 +56,7 @@ export default function CoordinatorDashboard() {
   }
 
   return (
-    <Shell tabs={TABS} activeTab={tab} onTabChange={setTab} badges={{ requests: pending.length }}>
+    <>
       {tab === 'requests' && <RequestsTab list={pending} onApprove={approve} onReject={reject} />}
       {tab === 'today' && <TodayTab list={today} onIssue={issue} onReturn={setReturnModalBooking} />}
       {tab === 'due' && <DueTab list={due} onReturn={setReturnModalBooking} />}
@@ -71,7 +67,7 @@ export default function CoordinatorDashboard() {
         <ReturnModal booking={returnModalBooking} onClose={() => setReturnModalBooking(null)} onSubmit={handleReturnSubmit} />
       )}
       <Toast message={toast} />
-    </Shell>
+    </>
   );
 }
 

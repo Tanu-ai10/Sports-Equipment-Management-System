@@ -2,11 +2,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import Shell from '../components/Shell.jsx';
 import AddEquipmentModal from '../components/AddEquipmentModal.jsx';
+import OperationsPanel from './CoordinatorDashboard.jsx';
 import { StatCard, EmptyState, Toast } from '../components/Shared.jsx';
 import { useToast, errorMessage } from '../hooks.js';
 import api from '../api.js';
 
-const TABS = [['overview', 'Overview'], ['equipment', 'Equipment'], ['bookings', 'Booking Stats'], ['fines', 'Fine Collection']];
+const TABS = [
+  ['overview', 'Overview'],
+  ['equipment', 'Equipment'],
+  ['bookings', 'Booking Stats'],
+  ['fines', 'Fine Collection'],
+  ['requests', 'Requests'],
+  ['today', "Today's Bookings"],
+  ['due', 'Due Today'],
+  ['overdue', 'Overdue'],
+  ['damage', 'Damage Reports'],
+];
 
 export default function AdminDashboard() {
   const [tab, setTab] = useState('overview');
@@ -31,6 +42,23 @@ export default function AdminDashboard() {
 
   useEffect(() => { loadOverview(); loadEquipment(); loadFines(); }, [loadOverview, loadEquipment, loadFines]);
 
+  async function downloadReport() {
+    try {
+      const res = await api.get('/dashboard/admin/report.csv', { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'courtside-admin-report.csv';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      showToast('CSV report downloaded.');
+    } catch (err) {
+      showToast(errorMessage(err, 'Could not download the CSV report.'));
+    }
+  }
+
   async function handleAddEquipment({ name, sport, quantity, location, description, file }) {
     try {
       const form = new FormData();
@@ -52,10 +80,11 @@ export default function AdminDashboard() {
 
   return (
     <Shell tabs={TABS} activeTab={tab} onTabChange={setTab}>
-      {tab === 'overview' && <OverviewTab overview={overview} />}
+      {tab === 'overview' && <OverviewTab overview={overview} onDownloadReport={downloadReport} />}
       {tab === 'equipment' && <EquipmentTab equipment={equipment} onAdd={() => setShowAddEq(true)} />}
       {tab === 'bookings' && <BookingsTab overview={overview} />}
       {tab === 'fines' && <FinesTab fines={fines} />}
+      {['requests', 'today', 'due', 'overdue', 'damage'].includes(tab) && <OperationsPanel tab={tab} />}
 
       {showAddEq && <AddEquipmentModal onClose={() => setShowAddEq(false)} onSubmit={handleAddEquipment} />}
       <Toast message={toast} />
@@ -63,12 +92,15 @@ export default function AdminDashboard() {
   );
 }
 
-function OverviewTab({ overview }) {
+function OverviewTab({ overview, onDownloadReport }) {
   if (!overview) return <div className="center-spinner">Loading…</div>;
   const chartData = overview.mostBorrowed.map((r) => ({ name: r.name, count: Number(r.total_booked) }));
   return (
     <>
-      <div className="section-head"><div><h2>Admin Overview</h2><div className="section-sub">Snapshot of catalog health & booking activity.</div></div></div>
+      <div className="section-head">
+        <div><h2>Admin Overview</h2><div className="section-sub">Snapshot of catalog health & booking activity.</div></div>
+        <button className="row-btn approve" style={{ padding: '9px 16px' }} onClick={onDownloadReport}>Download CSV</button>
+      </div>
       <div className="stat-row">
         <StatCard num={overview.totalEquipmentUnits} label="Total Equipment Units" />
         <StatCard num={overview.underMaintenance} label="Under Maintenance" />

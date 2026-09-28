@@ -7,7 +7,7 @@ const router = express.Router();
 
 // POST /api/returns — Coordinator/Admin marks a booking's equipment as returned
 // body: { bookingId, equipmentCondition: 'Good'|'Fair'|'Damaged'|'Lost' }
-router.post('/', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.post('/', requireAuth, requireRole('Admin'), async (req, res) => {
   const { bookingId, equipmentCondition } = req.body;
   if (!bookingId || !equipmentCondition) {
     return res.status(400).json({ error: 'bookingId and equipmentCondition are required.' });

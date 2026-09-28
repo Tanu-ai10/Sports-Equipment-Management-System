@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const cron = require('node-cron');
+const db = require('./db');
 
 const { migrate } = require('./migrate');
 const { seed } = require('./seed');
@@ -21,16 +22,19 @@ const dashboardRoutes = require('./routes/dashboard.routes');
 const app = express();
 
 async function initializeDatabase() {
-  if (process.env.USE_PG_MEM !== 'true') return;
-
-  try {
-    await migrate();
-    await seed({ closeConnection: false });
-    console.log('✔ pg-mem database initialized for local development.');
-  } catch (err) {
-    console.error('Database initialization failed:', err.message);
-    process.exitCode = 1;
+  if (process.env.USE_PG_MEM === 'true') {
+    try {
+      await migrate();
+      await seed({ closeConnection: false });
+      console.log('✔ pg-mem database initialized for local development.');
+    } catch (err) {
+      console.error('Database initialization failed:', err.message);
+      process.exitCode = 1;
+      return;
+    }
   }
+
+  await db.query('ALTER TABLE Users ADD COLUMN IF NOT EXISTS EmailVerified BOOLEAN NOT NULL DEFAULT TRUE');
 }
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));

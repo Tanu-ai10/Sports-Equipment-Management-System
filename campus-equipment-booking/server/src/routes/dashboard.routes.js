@@ -3,6 +3,22 @@ const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 
 const router = express.Router();
+const REPORT_COLUMNS = [
+  'Record Type', 'ID', 'Student', 'Equipment', 'Sport', 'Booking Date', 'Time Slot',
+  'Quantity', 'Purpose', 'Status', 'Total Quantity', 'Available Quantity', 'Condition',
+  'Location', 'Fine Reason', 'Fine Amount', 'Fine Paid', 'Description', 'Return Date',
+  'Booking ID', 'Created At',
+];
+
+function csvCell(value) {
+  let text = value == null ? '' : String(value);
+  if (/^\s*[=+\-@]/.test(text)) text = `'${text}`;
+  return `"${text.replace(/"/g, '""')}"`;
+}
+
+function csvRow(values) {
+  return values.map(csvCell).join(',');
+}
 
 // GET /api/dashboard/student — active bookings, history, pending, fines, notifications summary
 router.get('/student', requireAuth, requireRole('Student'), async (req, res) => {
@@ -27,7 +43,7 @@ router.get('/student', requireAuth, requireRole('Student'), async (req, res) => 
 });
 
 // GET /api/dashboard/coordinator — today's bookings, due today, overdue, damage reports
-router.get('/coordinator', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.get('/operations', requireAuth, requireRole('Admin'), async (req, res) => {
   try {
     const [todayCount, dueCount, overdueCount, damageCount] = await Promise.all([
       db.query(`SELECT COUNT(*) FROM Bookings WHERE Date = CURRENT_DATE AND Status IN ('Approved','Issued')`),
@@ -80,6 +96,67 @@ router.get('/admin', requireAuth, requireRole('Admin'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not load dashboard.' });
+  }
+});
+
+// GET /api/dashboard/admin/report.csv — downloadable admin report
+router.get('/admin/report.csv', requireAuth, requireRole('Admin'), async (req, res) => {
+  try {
+    const [equipment, bookings, fines, damageReports, returns] = await Promise.all([
+      db.query(`SELECT EquipmentID AS id, Name AS equipment, Sport AS sport, Quantity AS total_quantity,
+                       AvailableQuantity AS available_quantity, Condition AS condition, Location AS location,
+                       Status AS status, CreatedAt AS created_at
+                FROM Equipment ORDER BY Sport, Name`),
+      db.query(`SELECT b.BookingID AS id, u.Name AS student, e.Name AS equipment, e.Sport AS sport,
+                       b.Date AS booking_date, b.TimeSlot AS time_slot, b.Quantity AS quantity,
+                       b.Purpose AS purpose, b.Status AS status, b.CreatedAt AS created_at
+                FROM Bookings b JOIN Users u ON u.UserID = b.UserID
+                JOIN Equipment e ON e.EquipmentID = b.EquipmentID
+                ORDER BY b.Date DESC, b.CreatedAt DESC`),
+      db.query(`SELECT f.FineID AS id, u.Name AS student, e.Name AS equipment, f.Reason AS fine_reason,
+                       f.Amount AS amount, f.PaidStatus AS paid, f.CreatedAt AS created_at
+                FROM Fines f JOIN Users u ON u.UserID = f.UserID
+                LEFT JOIN Bookings b ON b.BookingID = f.BookingID
+                LEFT JOIN Equipment e ON e.EquipmentID = b.EquipmentID
+                ORDER BY f.CreatedAt DESC`),
+      db.query(`SELECT d.ReportID AS id, u.Name AS student, e.Name AS equipment, e.Sport AS sport,
+                       d.Description AS description, d.Status AS status, d.CreatedAt AS created_at
+                FROM DamageReports d JOIN Users u ON u.UserID = d.UserID
+                JOIN Equipment e ON e.EquipmentID = d.EquipmentID
+                ORDER BY d.CreatedAt DESC`),
+      db.query(`SELECT r.ReturnID AS id, b.BookingID AS booking_id, u.Name AS student,
+                       e.Name AS equipment, e.Sport AS sport, b.Quantity AS quantity,
+                       r.ReturnDate AS return_date, r.EquipmentCondition AS condition, r.CreatedAt AS created_at
+                FROM Returns r JOIN Bookings b ON b.BookingID = r.BookingID
+                JOIN Users u ON u.UserID = b.UserID
+                JOIN Equipment e ON e.EquipmentID = b.EquipmentID
+                ORDER BY r.ReturnDate DESC, r.CreatedAt DESC`),
+    ]);
+
+    const records = [
+      ...equipment.rows.map((row) => ({ type: 'Equipment', ...row })),
+      ...bookings.rows.map((row) => ({ type: 'Booking', ...row })),
+      ...fines.rows.map((row) => ({ type: 'Fine', ...row })),
+      ...damageReports.rows.map((row) => ({ type: 'Damage Report', ...row })),
+      ...returns.rows.map((row) => ({ type: 'Return', ...row })),
+    ];
+    const csv = [
+      csvRow(REPORT_COLUMNS),
+      ...records.map((row) => csvRow([
+        row.type, row.id, row.student, row.equipment, row.sport, row.booking_date,
+        row.time_slot, row.quantity, row.purpose, row.status, row.total_quantity,
+        row.available_quantity, row.condition, row.location, row.fine_reason,
+        row.amount, row.paid, row.description, row.return_date, row.booking_id,
+        row.created_at,
+      ])),
+    ].join('\r\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="courtside-admin-report.csv"');
+    res.send(`\uFEFF${csv}`);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not generate the admin report.' });
   }
 });
 

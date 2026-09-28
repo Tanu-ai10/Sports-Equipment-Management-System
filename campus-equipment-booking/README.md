@@ -44,7 +44,7 @@ Seeding creates four demo accounts (all with password `password123`):
 | Role        | Email                       |
 |-------------|------------------------------|
 | Admin       | admin@courtside.edu          |
-| Coordinator | coordinator@courtside.edu    |
+| Admin       | sportsadmin@courtside.edu    |
 | Student     | tanu@courtside.edu           |
 | Student     | aarav@courtside.edu          |
 
@@ -58,6 +58,15 @@ npm start        # plain node
 
 The API listens on `http://localhost:4000` by default (`PORT` in `.env`).
 Health check: `GET /api/health`.
+
+### Email verification
+
+New accounts must verify their email before logging in. Configure `SMTP_HOST`,
+`SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` in `server/.env`, then
+set `CLIENT_URL` to the address serving the frontend. Signup sends a 24-hour
+verification link; confirming it verifies the address and sends a signup
+success email. Existing accounts remain verified. Use an SMTP app password
+when required by your email provider.
 
 An overdue-sweep job runs once at boot and then every 30 minutes — it flags
 `Issued` bookings whose return date has passed, moves them to `Overdue`, and
@@ -90,16 +99,16 @@ npm run preview    # serve the built files locally to sanity-check
 
 | Your spec section     | Where it lives |
 |------------------------|----------------|
-| User Authentication (Student/Admin/Coordinator login, forgot password) | `server/src/routes/auth.routes.js`, `client/src/pages/LoginPage.jsx` |
+| User Authentication (Student/Admin login, forgot password) | `server/src/routes/auth.routes.js`, `client/src/pages/LoginPage.jsx` |
 | Equipment Catalog (ID, name, sport, image, description, qty, condition, location, status) | `Equipment` table in `schema.sql`; `equipment.routes.js`; `StudentDashboard.jsx` catalog tab |
 | Search & Filter (sport, name, availability, date, popular) | `GET /api/equipment` query params; filter bar in `StudentDashboard.jsx` |
 | Booking Workflow (equipment/date/slot/qty/purpose, availability & limit checks) | `booking.routes.js` `POST /api/bookings`; `BookingModal.jsx` |
 | Booking Status (Pending → Approved/Rejected → Issued → Returned/Cancelled/Overdue) | `booking_status` enum in `schema.sql`; status transitions across `booking.routes.js` |
 | Equipment Issue & Return | `PATCH /api/bookings/:id/issue`, `POST /api/returns` |
-| Damage Reporting (image + description, coordinator review) | `damage.routes.js`; `DamageModal.jsx`; `DamageTab` in `CoordinatorDashboard.jsx` |
+| Damage Reporting (image + description, admin review) | `damage.routes.js`; `DamageModal.jsx`; `DamageTab` in `CoordinatorDashboard.jsx` |
 | Fine Management (late, damaged, lost) | `Fines` table; `jobs/overdueSweep.js`; fine logic in `return.routes.js` and `damage.routes.js` |
 | Notifications | `Notifications` table; `notification.routes.js`; generated alongside every state change |
-| Student / Coordinator / Admin dashboards | `dashboard.routes.js`; the three `*Dashboard.jsx` pages |
+| Student / Admin dashboards, including booking operations | `dashboard.routes.js`; the student and admin dashboard pages |
 | Database tables (Users, Equipment, Bookings, Returns, DamageReports, Notifications) | `server/src/schema.sql` — plus a `Fines` table added to support Fine Management cleanly |
 
 ---

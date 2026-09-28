@@ -27,7 +27,7 @@ router.get('/mine', requireAuth, async (req, res) => {
 });
 
 // GET /api/bookings?status=Pending&date=today  — Coordinator/Admin views
-router.get('/', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.get('/', requireAuth, requireRole('Admin'), async (req, res) => {
   const { status, date, dueToday, overdue } = req.query;
   const clauses = [];
   const params = [];
@@ -158,7 +158,7 @@ router.patch('/:id/cancel', requireAuth, async (req, res) => {
 });
 
 // PATCH /api/bookings/:id/approve — Coordinator/Admin
-router.patch('/:id/approve', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.patch('/:id/approve', requireAuth, requireRole('Admin'), async (req, res) => {
   try {
     const bkRes = await db.query('SELECT * FROM Bookings WHERE BookingID=$1', [req.params.id]);
     if (bkRes.rowCount === 0) return res.status(404).json({ error: 'Booking not found.' });
@@ -179,7 +179,7 @@ router.patch('/:id/approve', requireAuth, requireRole('Coordinator', 'Admin'), a
 });
 
 // PATCH /api/bookings/:id/reject — Coordinator/Admin
-router.patch('/:id/reject', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.patch('/:id/reject', requireAuth, requireRole('Admin'), async (req, res) => {
   const client = await db.getClient();
   try {
     await client.query('BEGIN');
@@ -210,7 +210,7 @@ router.patch('/:id/reject', requireAuth, requireRole('Coordinator', 'Admin'), as
 });
 
 // PATCH /api/bookings/:id/issue — Coordinator/Admin confirms physical hand-off
-router.patch('/:id/issue', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.patch('/:id/issue', requireAuth, requireRole('Admin'), async (req, res) => {
   try {
     const bkRes = await db.query('SELECT * FROM Bookings WHERE BookingID=$1', [req.params.id]);
     if (bkRes.rowCount === 0) return res.status(404).json({ error: 'Booking not found.' });

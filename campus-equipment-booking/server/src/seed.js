@@ -38,7 +38,7 @@ async function seed({ closeConnection = true } = {}) {
 
     const users = [
       ['Admin User', 'admin@courtside.edu', 'Admin', 'Sports Office', '9000000001'],
-      ['Coach Rane', 'coordinator@courtside.edu', 'Coordinator', 'Sports Office', '9000000002'],
+      ['Sports Office Admin', 'sportsadmin@courtside.edu', 'Admin', 'Sports Office', '9000000002'],
       ['Tanu Sharma', 'tanu@courtside.edu', 'Student', 'Computer Engineering', '9000000003'],
       ['Aarav Mehta', 'aarav@courtside.edu', 'Student', 'Mechanical Engineering', '9000000004'],
     ];

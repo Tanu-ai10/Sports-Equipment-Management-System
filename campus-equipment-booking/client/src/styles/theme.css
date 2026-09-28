@@ -53,7 +53,7 @@ button{font-family:inherit;cursor:pointer;}
 .brand .display{font-size:34px;color:var(--turf);}
 .brand .tag{font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink-soft);}
 .login-sub{color:var(--ink-soft);font-size:14px;margin-bottom:28px;}
-.role-picker{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:20px;}
+.role-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:20px;}
 .role-btn{
   border:2px solid var(--line); background:var(--chalk); border-radius:10px;
   padding:12px 6px; text-align:center; font-size:12.5px; font-weight:600;
@@ -67,6 +67,9 @@ label.field-label{font-size:12px;font-weight:700;text-transform:uppercase;letter
   font-size:14.5px; margin-bottom:16px; background:var(--chalk); font-family:inherit;
 }
 .input:focus{outline:none;border-color:var(--turf);}
+.password-field{position:relative;}
+.password-field .input{padding-right:58px;}
+.password-visibility{position:absolute;top:8px;right:9px;padding:4px 3px;border:0;background:transparent;color:var(--scoreboard-blue);font-size:11px;font-weight:700;}
 .btn-primary{
   width:100%; background:var(--turf); color:#fff; border:none; padding:13px;
   border-radius:9px; font-weight:700; font-size:14.5px; letter-spacing:0.02em; transition:background .15s ease;
@@ -76,6 +79,7 @@ label.field-label{font-size:12px;font-weight:700;text-transform:uppercase;letter
 .forgot-link{display:block;text-align:center;margin-top:14px;font-size:13px;color:var(--scoreboard-blue);text-decoration:none;font-weight:600;background:none;border:none;width:100%;}
 .login-hint{margin-top:22px; font-size:11.5px; color:var(--ink-soft); text-align:center; line-height:1.5;}
 .error-banner{background:var(--red-pale); color:var(--court-red); border-radius:8px; padding:10px 12px; font-size:13px; font-weight:600; margin-bottom:14px;}
+.verification-success{background:var(--turf-pale);color:var(--turf);}
 
 /* ---------- APP SHELL ---------- */
 .topbar{
@@ -131,6 +135,8 @@ label.field-label{font-size:12px;font-weight:700;text-transform:uppercase;letter
   padding:9px 11px; border-radius:8px; border:1.5px solid var(--line); font-size:13px; background:var(--chalk); font-family:inherit;
 }
 .filter-bar .grow{flex:1;min-width:140px;}
+.password-rules{display:grid;grid-template-columns:1fr 1fr;gap:4px 8px;margin:-8px 0 16px;color:var(--ink-soft);font-size:11px;}
+.password-rules .met{color:var(--turf);font-weight:600;}
 
 /* ---------- EQUIPMENT SCORECARDS ---------- */
 .eq-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;}

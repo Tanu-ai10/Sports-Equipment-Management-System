@@ -6,8 +6,15 @@ import { errorMessage } from '../hooks.js';
 
 const ROLES = [
   { key: 'Student', icon: '🎓' },
-  { key: 'Coordinator', icon: '🧑\u200d💼' },
   { key: 'Admin', icon: '🛡️' },
+];
+
+const PASSWORD_RULES = [
+  { label: 'At least 8 characters', test: (value) => value.length >= 8 },
+  { label: 'One uppercase letter', test: (value) => /[A-Z]/.test(value) },
+  { label: 'One lowercase letter', test: (value) => /[a-z]/.test(value) },
+  { label: 'One number', test: (value) => /\d/.test(value) },
+  { label: 'One special character', test: (value) => /[^A-Za-z0-9\s]/.test(value) },
 ];
 
 export default function LoginPage() {
@@ -19,18 +26,21 @@ export default function LoginPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showRegistrationPassword, setShowRegistrationPassword] = useState(false);
   const [department, setDepartment] = useState('');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
+  const passwordIsStrong = PASSWORD_RULES.every(({ test }) => test(password));
 
   async function handleLogin(e) {
     e.preventDefault();
     setError(''); setInfo(''); setLoading(true);
     try {
-      const user = await login(email, password);
-      const dest = user.role === 'Student' ? '/student' : user.role === 'Coordinator' ? '/coordinator' : '/admin';
+      const user = await login(email, password, role);
+      const dest = user.role === 'Student' ? '/student' : '/admin';
       navigate(dest);
     } catch (err) {
       setError(errorMessage(err, 'Login failed. Check your email and password.'));
@@ -41,10 +51,16 @@ export default function LoginPage() {
 
   async function handleRegister(e) {
     e.preventDefault();
+    if (!passwordIsStrong) {
+      setError('Choose a password that meets all the requirements.');
+      setInfo('');
+      return;
+    }
     setError(''); setInfo(''); setLoading(true);
     try {
-      await api.post('/auth/register', { name, email, password, role, department, phone });
-      setInfo('Account created — you can log in now.');
+      const res = await api.post('/auth/register', { name, email, password, role, department, phone });
+      setInfo(res.data.message);
+      setPassword('');
       setMode('login');
     } catch (err) {
       setError(errorMessage(err, 'Could not create account.'));
@@ -102,7 +118,12 @@ export default function LoginPage() {
             <label className="field-label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@college.edu" />
             <label className="field-label">Password</label>
-            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+            <div className="password-field">
+              <input className="input" type={showLoginPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required placeholder="••••••••" />
+              <button className="password-visibility" type="button" aria-label={showLoginPassword ? 'Hide password' : 'Show password'} aria-pressed={showLoginPassword} onClick={() => setShowLoginPassword((visible) => !visible)}>
+                {showLoginPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
             <button className="btn-primary" disabled={loading}>{loading ? 'Signing in…' : `Log in as ${role}`}</button>
             <button type="button" className="forgot-link" onClick={() => { setMode('forgot'); setError(''); setInfo(''); }}>Forgot password?</button>
             <div className="login-hint">
@@ -121,7 +142,19 @@ export default function LoginPage() {
             <label className="field-label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@college.edu" />
             <label className="field-label">Password</label>
-            <input className="input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} placeholder="At least 6 characters" />
+            <div className="password-field">
+              <input className="input" type={showRegistrationPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} autoComplete="new-password" placeholder="Create a strong password" />
+              <button className="password-visibility" type="button" aria-label={showRegistrationPassword ? 'Hide password' : 'Show password'} aria-pressed={showRegistrationPassword} onClick={() => setShowRegistrationPassword((visible) => !visible)}>
+                {showRegistrationPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            <div className="password-rules" aria-label="Password requirements">
+              {PASSWORD_RULES.map(({ label, test }) => (
+                <div key={label} className={test(password) ? 'met' : ''}>
+                  {test(password) ? '\u2713' : '\u2022'} {label}
+                </div>
+              ))}
+            </div>
             <div className="field-row">
               <div>
                 <label className="field-label">Department</label>

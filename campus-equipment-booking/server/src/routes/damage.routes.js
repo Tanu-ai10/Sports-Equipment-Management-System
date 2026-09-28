@@ -53,7 +53,7 @@ router.post('/', requireAuth, requireRole('Student'), upload.single('image'), as
 });
 
 // PATCH /api/damage-reports/:id/review — Coordinator/Admin: { decision: 'Confirmed' | 'Dismissed' }
-router.patch('/:id/review', requireAuth, requireRole('Coordinator', 'Admin'), async (req, res) => {
+router.patch('/:id/review', requireAuth, requireRole('Admin'), async (req, res) => {
   const { decision } = req.body;
   if (!['Confirmed', 'Dismissed'].includes(decision)) {
     return res.status(400).json({ error: "decision must be 'Confirmed' or 'Dismissed'." });

@@ -6,11 +6,18 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     const raw = localStorage.getItem('courtside_user');
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const storedUser = JSON.parse(raw);
+    if (storedUser.role === 'Coordinator') {
+      localStorage.removeItem('courtside_token');
+      localStorage.removeItem('courtside_user');
+      return null;
+    }
+    return storedUser;
   });
 
-  const login = useCallback(async (email, password) => {
-    const res = await api.post('/auth/login', { email, password });
+  const login = useCallback(async (email, password, role) => {
+    const res = await api.post('/auth/login', { email, password, role });
     localStorage.setItem('courtside_token', res.data.token);
     localStorage.setItem('courtside_user', JSON.stringify(res.data.user));
     setUser(res.data.user);

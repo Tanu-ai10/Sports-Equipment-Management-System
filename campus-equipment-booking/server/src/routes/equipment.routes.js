@@ -6,20 +6,21 @@ const { computeEquipmentStatus } = require('../utils/fines');
 
 const router = express.Router();
 
-// GET /api/equipment?sport=&name=&availability=available&popular=true&date=&timeSlot=
+// GET /api/equipment?sport=&name=&equipmentId=&availability=available&popular=true&date=&timeSlot=
 router.get('/', requireAuth, async (req, res) => {
-  const { sport, name, availability, popular, date, timeSlot } = req.query;
+  const { sport, name, equipmentId, availability, popular, date, timeSlot } = req.query;
   const clauses = [];
   const params = [];
 
-  if (sport) { params.push(sport); clauses.push(`Sport = $${params.length}`); }
-  if (name) { params.push(`%${name.toLowerCase()}%`); clauses.push(`LOWER(Name) LIKE $${params.length}`); }
-  if (availability === 'available') { clauses.push('AvailableQuantity > 0'); }
+  if (sport) { params.push(sport); clauses.push(`e.Sport = $${params.length}`); }
+  if (name) { params.push(`%${name.toLowerCase()}%`); clauses.push(`LOWER(e.Name) LIKE $${params.length}`); }
+  if (equipmentId) { params.push(equipmentId); clauses.push(`e.EquipmentID = $${params.length}`); }
+  if (availability === 'available') { clauses.push('e.AvailableQuantity > 0'); }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
 
   try {
-    let sql = `SELECT * FROM Equipment ${where} ORDER BY Sport, Name`;
+    let sql = `SELECT e.* FROM Equipment e ${where} ORDER BY e.Sport, e.Name`;
 
     if (popular === 'true') {
       // "Popular" = ranked by total quantity ever booked
