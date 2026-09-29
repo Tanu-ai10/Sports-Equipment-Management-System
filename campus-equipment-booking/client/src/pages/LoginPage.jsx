@@ -51,12 +51,21 @@ export default function LoginPage() {
     }
     setError(''); setInfo(''); setLoading(true);
     try {
-      const res = await api.post('/auth/register', { name, email, password, role, department, phone });
+      const res = await api.post(
+        '/auth/register',
+        { name, email, password, role, department, phone },
+        { timeout: 30_000 }
+      );
       setInfo(res.data.message);
       setPassword('');
       setMode('login');
     } catch (err) {
-      setError(errorMessage(err, 'Could not create account.'));
+      setError(errorMessage(
+        err,
+        err.code === 'ECONNABORTED'
+          ? 'Signup timed out while contacting the email service. Please try again later.'
+          : 'Could not create account.'
+      ));
     } finally {
       setLoading(false);
     }
