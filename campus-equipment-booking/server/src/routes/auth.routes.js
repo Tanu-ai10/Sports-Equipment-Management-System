@@ -156,17 +156,23 @@ router.post('/verify-email', async (req, res) => {
     if (user.emailverified) {
       return res.json({ message: 'Your email is already verified. You can log in.' });
     }
-    if (!isEmailConfigured()) {
-      return res.status(503).json({ error: 'Email delivery is unavailable. Please try again later.' });
+    await db.query('UPDATE Users SET EmailVerified = TRUE WHERE UserID = $1', [user.userid]);
+
+    let message = 'Email verified. Your signup is complete. You can now log in.';
+    if (isEmailConfigured()) {
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Your CourtSide signup was successful',
+          text: `Hello ${user.name},\n\nYour email is verified and your CourtSide account is ready. You can now log in and book equipment.`,
+        });
+        message = 'Email verified. Your signup is complete, and a confirmation email has been sent.';
+      } catch (emailError) {
+        console.error('Signup confirmation email delivery failed:', emailError.message);
+      }
     }
 
-    await sendEmail({
-      to: user.email,
-      subject: 'Your CourtSide signup was successful',
-      text: `Hello ${user.name},\n\nYour email is verified and your CourtSide account is ready. You can now log in and book equipment.`,
-    });
-    await db.query('UPDATE Users SET EmailVerified = TRUE WHERE UserID = $1', [user.userid]);
-    res.json({ message: 'Email verified. Your signup is complete, and a confirmation email has been sent.' });
+    res.json({ message });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not verify your email. Please try again.' });
