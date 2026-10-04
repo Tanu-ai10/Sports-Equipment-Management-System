@@ -1,7 +1,6 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const upload = require('../middleware/upload');
 const { FINE_DAMAGE } = require('../utils/fines');
 
 const router = express.Router();
@@ -24,31 +23,6 @@ router.get('/', requireAuth, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not fetch damage reports.' });
-  }
-});
-
-// POST /api/damage-reports — Student submits (multipart/form-data with optional "image" file)
-router.post('/', requireAuth, requireRole('Student'), upload.single('image'), async (req, res) => {
-  const { equipmentId, bookingId, description } = req.body;
-  if (!equipmentId || !description) {
-    return res.status(400).json({ error: 'equipmentId and description are required.' });
-  }
-  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
-
-  try {
-    const result = await db.query(
-      `INSERT INTO DamageReports (EquipmentID, UserID, BookingID, Description, Image, Status)
-       VALUES ($1,$2,$3,$4,$5,'Under Review') RETURNING *`,
-      [equipmentId, req.user.userId, bookingId || null, description, imagePath]
-    );
-    await db.query('INSERT INTO Notifications (UserID, Message) VALUES ($1,$2)', [
-      req.user.userId,
-      `Damage report ${result.rows[0].reportid} submitted for review.`,
-    ]);
-    res.status(201).json(result.rows[0]);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Could not submit damage report.' });
   }
 });
 

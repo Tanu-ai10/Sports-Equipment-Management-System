@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Shell from '../components/Shell.jsx';
 import BookingModal from '../components/BookingModal.jsx';
-import DamageModal from '../components/DamageModal.jsx';
 import { StatusTag, EmptyState, Toast, fmtDate } from '../components/Shared.jsx';
 import { useToast, errorMessage } from '../hooks.js';
 import { SPORTS, SPORT_ICON } from '../constants.js';
@@ -18,7 +17,6 @@ export default function StudentDashboard() {
   const [notifications, setNotifications] = useState([]);
   const [filters, setFilters] = useState({ sport: '', equipmentId: '', availability: '', popular: false });
   const [bookingModalEq, setBookingModalEq] = useState(null);
-  const [damageModalBooking, setDamageModalBooking] = useState(null);
   const [toast, showToast] = useToast();
 
   const loadEquipment = useCallback(async () => {
@@ -86,19 +84,14 @@ export default function StudentDashboard() {
     }
   }
 
-  async function handleDamageSubmit({ equipmentId, bookingId, description, file }) {
+  async function markFinePaid(id) {
+    if (!window.confirm('Have you paid this fine to the sports office?')) return;
     try {
-      const form = new FormData();
-      form.append('equipmentId', equipmentId);
-      form.append('bookingId', bookingId);
-      form.append('description', description);
-      if (file) form.append('image', file);
-      await api.post('/damage-reports', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      showToast('Damage report submitted.');
-      setDamageModalBooking(null);
-      await refreshAll();
+      await api.patch(`/fines/mine/${id}/pay`);
+      showToast('Fine marked as paid.');
+      await Promise.all([loadFines(), loadNotifications()]);
     } catch (err) {
-      showToast(errorMessage(err, 'Could not submit damage report.'));
+      showToast(errorMessage(err, 'Could not update fine status.'));
     }
   }
 
@@ -116,16 +109,13 @@ export default function StudentDashboard() {
         <CatalogTab equipment={equipment} equipmentOptions={equipmentOptions} filters={filters} setFilters={setFilters} onBook={setBookingModalEq} />
       )}
       {tab === 'mybookings' && (
-        <MyBookingsTab bookings={bookings} onCancel={cancelBooking} onReportDamage={setDamageModalBooking} />
+        <MyBookingsTab bookings={bookings} onCancel={cancelBooking} />
       )}
-      {tab === 'fines' && <FinesTab fines={fines} />}
+      {tab === 'fines' && <FinesTab fines={fines} onMarkPaid={markFinePaid} />}
       {tab === 'notifications' && <NotificationsTab notifications={notifications} onRead={markNotifRead} />}
 
       {bookingModalEq && (
         <BookingModal equipment={bookingModalEq} onClose={() => setBookingModalEq(null)} onSubmit={handleBookingSubmit} />
-      )}
-      {damageModalBooking && (
-        <DamageModal booking={damageModalBooking} onClose={() => setDamageModalBooking(null)} onSubmit={handleDamageSubmit} />
       )}
       <Toast message={toast} />
     </Shell>
@@ -184,7 +174,7 @@ function CatalogTab({ equipment, equipmentOptions, filters, setFilters, onBook }
   );
 }
 
-function MyBookingsTab({ bookings, onCancel, onReportDamage }) {
+function MyBookingsTab({ bookings, onCancel }) {
   return (
     <>
       <div className="section-head"><div><h2>My Bookings</h2><div className="section-sub">Active bookings, history & pending requests.</div></div></div>
@@ -197,7 +187,6 @@ function MyBookingsTab({ bookings, onCancel, onReportDamage }) {
             )}
             {bookings.map((b) => {
               const canCancel = ['Pending', 'Approved'].includes(b.status);
-              const canReportDamage = ['Issued', 'Returned'].includes(b.status);
               return (
                 <tr key={b.bookingid}>
                   <td className="mono">BK-{b.bookingid}</td>
@@ -209,8 +198,7 @@ function MyBookingsTab({ bookings, onCancel, onReportDamage }) {
                   <td>{b.fine ? `₹${b.fine}` : '—'}</td>
                   <td>
                     {canCancel && <button className="row-btn neutral" onClick={() => onCancel(b.bookingid)}>Cancel</button>}
-                    {canReportDamage && <button className="row-btn neutral" onClick={() => onReportDamage(b)}>Report Damage</button>}
-                    {!canCancel && !canReportDamage && '—'}
+                    {!canCancel && '—'}
                   </td>
                 </tr>
               );
@@ -222,19 +210,19 @@ function MyBookingsTab({ bookings, onCancel, onReportDamage }) {
   );
 }
 
-function FinesTab({ fines }) {
+function FinesTab({ fines, onMarkPaid }) {
   return (
     <>
-      <div className="section-head"><div><h2>Fines</h2><div className="section-sub">Penalties for late returns, damage or lost equipment.</div></div></div>
+      <div className="section-head"><div><h2>Fines</h2><div className="section-sub">Mark a fine paid after settling it with the sports office.</div></div></div>
       <div className="fine-total-card">
         <div><div className="num">₹{fines.total}</div><div className="lbl">Total outstanding</div></div>
         <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.75)', maxWidth: 260 }}>Settle fines with the sports office to keep your booking privileges active.</div>
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>Fine</th><th>Equipment</th><th>Reason</th><th>Amount</th><th>Status</th></tr></thead>
+          <thead><tr><th>Fine</th><th>Equipment</th><th>Reason</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
           <tbody>
-            {fines.fines.length === 0 && <tr><td colSpan={5}><EmptyState icon="✅">No fines — you're all clear!</EmptyState></td></tr>}
+            {fines.fines.length === 0 && <tr><td colSpan={6}><EmptyState icon="✅">No fines — you're all clear!</EmptyState></td></tr>}
             {fines.fines.map((f) => (
               <tr key={f.fineid}>
                 <td className="mono">FN-{f.fineid}</td>
@@ -242,6 +230,7 @@ function FinesTab({ fines }) {
                 <td>{f.reason}</td>
                 <td>₹{f.amount}</td>
                 <td>{f.paidstatus ? <span className="status-tag tag-Returned">Paid</span> : <span className="status-tag tag-Pending">Unpaid</span>}</td>
+                <td>{f.paidstatus ? '—' : <button className="row-btn approve" onClick={() => onMarkPaid(f.fineid)}>Mark paid</button>}</td>
               </tr>
             ))}
           </tbody>

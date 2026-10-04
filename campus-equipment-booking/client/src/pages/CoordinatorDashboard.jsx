@@ -42,10 +42,15 @@ export default function CoordinatorDashboard({ tab }) {
     try { await api.patch(`/bookings/${id}/issue`); showToast('Equipment issued.'); loadAll(); }
     catch (err) { showToast(errorMessage(err, 'Could not issue equipment.')); }
   }
-  async function handleReturnSubmit(payload) {
+  async function handleReturnSubmit({ bookingId, equipmentCondition, damageDescription, file }) {
     try {
-      await api.post('/returns', payload);
-      showToast('Return recorded.');
+      const form = new FormData();
+      form.append('bookingId', bookingId);
+      form.append('equipmentCondition', equipmentCondition);
+      if (damageDescription) form.append('damageDescription', damageDescription);
+      if (file) form.append('image', file);
+      await api.post('/returns', form);
+      showToast(equipmentCondition === 'Damaged' ? 'Return recorded, damage report created, and fine applied.' : 'Return recorded.');
       setReturnModalBooking(null);
       loadAll();
     } catch (err) { showToast(errorMessage(err, 'Could not record return.')); }
@@ -172,7 +177,7 @@ function OverdueTab({ list, onReturn }) {
 function DamageTab({ list, onReview }) {
   return (
     <>
-      <div className="section-head"><div><h2>Damage Reports</h2><div className="section-sub">Review student-submitted damage reports.</div></div></div>
+      <div className="section-head"><div><h2>Damage Reports</h2><div className="section-sub">Damage found during admin inspections; confirmed reports have fines applied.</div></div></div>
       <div className="table-wrap">
         <table>
           <thead><tr><th>Report</th><th>Student</th><th>Equipment</th><th>Description</th><th>Photo</th><th>Status</th><th>Actions</th></tr></thead>

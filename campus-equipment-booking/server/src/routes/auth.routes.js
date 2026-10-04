@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const db = require('../db');
-const { isEmailConfigured, sendEmail } = require('../utils/email');
+const { createLocalActionUrl, getLocalClientOrigin, isEmailConfigured, sendEmail } = require('../utils/email');
 
 const router = express.Router();
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -50,15 +50,20 @@ router.post('/register', async (req, res) => {
   if (!['Student', 'Admin'].includes(role)) {
     return res.status(400).json({ error: 'role must be Student or Admin.' });
   }
-  if (!isEmailConfigured()) {
-    return res.status(503).json({ error: 'Email verification is unavailable. Configure SMTP settings and try again.' });
+  if (!getLocalClientOrigin()) {
+    return res.status(503).json({ error: 'Local verification links are available only in development on localhost.' });
   }
+  if (!isEmailConfigured()) {
+    return res.status(503).json({ error: 'SMTP email is not configured. Add SMTP settings to the server environment.' });
+  }
+
   try {
-    const cleanEmail = email.trim();
-    const existing = await db.query('SELECT 1 FROM Users WHERE Email = $1', [cleanEmail]);
+    const cleanEmail = email.trim().toLowerCase();
+    const existing = await db.query('SELECT 1 FROM Users WHERE LOWER(Email) = $1', [cleanEmail]);
     if (existing.rowCount > 0) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
+
     const passwordHash = await bcrypt.hash(password, 10);
     const result = await db.query(
       `INSERT INTO Users (Name, Email, PasswordHash, Role, Department, Phone, EmailVerified)
@@ -71,25 +76,21 @@ router.post('/register', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '24h' }
     );
-    const verificationUrl = new URL(
-      '/verify-email',
-      process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || 'http://localhost:5173'
-    );
-    verificationUrl.searchParams.set('token', verificationToken);
+    const verificationUrl = createLocalActionUrl('/verify-email', verificationToken);
 
     try {
       await sendEmail({
         to: cleanEmail,
         subject: 'Verify your CourtSide account',
-        text: `Hello ${name},\n\nVerify your email address to finish creating your CourtSide account:\n${verificationUrl.toString()}\n\nThis link expires in 24 hours.`,
+        text: `Hello ${name},\n\nVerify your email address to finish creating your CourtSide account:\n${verificationUrl}\n\nThis link expires in 24 hours.`,
       });
     } catch (emailError) {
       await db.query('DELETE FROM Users WHERE UserID = $1 AND EmailVerified = FALSE', [user.userid]);
       console.error('Verification email delivery failed:', emailError.message);
-      return res.status(503).json({ error: 'Could not send a verification email. Check the email address and try again.' });
+      return res.status(503).json({ error: 'Could not send a verification email. Check the SMTP settings and try again.' });
     }
 
-    res.status(201).json({ message: 'Check your email to verify your address and complete signup.' });
+    res.status(201).json({ message: 'Verification link sent. Check your inbox before logging in.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not create account.' });
@@ -106,7 +107,7 @@ router.post('/login', async (req, res) => {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
   try {
-    const result = await db.query('SELECT * FROM Users WHERE Email = $1', [email.trim()]);
+    const result = await db.query('SELECT * FROM Users WHERE LOWER(Email) = $1', [email.trim().toLowerCase()]);
     if (result.rowCount === 0) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
@@ -115,8 +116,27 @@ router.post('/login', async (req, res) => {
     if (!match) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
-    if (user.emailverified === false) {
-      return res.status(403).json({ error: 'Please verify your email before logging in.' });
+    if (!user.emailverified) {
+      if (!getLocalClientOrigin() || !isEmailConfigured()) {
+        return res.status(503).json({ error: 'Email verification is not available. Check the local SMTP configuration.' });
+      }
+      const verificationToken = jwt.sign(
+        { userId: user.userid, purpose: 'email-verification' },
+        process.env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+      const verificationUrl = createLocalActionUrl('/verify-email', verificationToken);
+      try {
+        await sendEmail({
+          to: user.email,
+          subject: 'Verify your CourtSide account',
+          text: `Hello ${user.name},\n\nVerify your email address before logging in:\n${verificationUrl}\n\nThis link expires in 24 hours.`,
+        });
+      } catch (emailError) {
+        console.error('Verification email resend failed:', emailError.message);
+        return res.status(503).json({ error: 'Could not send a new verification email. Check the SMTP settings and try again.' });
+      }
+      return res.status(403).json({ error: 'Your email is not verified. A new verification link was sent.' });
     }
     const accountRole = user.role === 'Coordinator' ? 'Admin' : user.role;
     if (role && role !== accountRole) {
@@ -151,28 +171,13 @@ router.post('/verify-email', async (req, res) => {
     if (result.rowCount === 0) {
       return res.status(400).json({ error: 'This verification link is invalid or has expired.' });
     }
-
     const user = result.rows[0];
     if (user.emailverified) {
       return res.json({ message: 'Your email is already verified. You can log in.' });
     }
     await db.query('UPDATE Users SET EmailVerified = TRUE WHERE UserID = $1', [user.userid]);
 
-    let message = 'Email verified. Your signup is complete. You can now log in.';
-    if (isEmailConfigured()) {
-      try {
-        await sendEmail({
-          to: user.email,
-          subject: 'Your CourtSide signup was successful',
-          text: `Hello ${user.name},\n\nYour email is verified and your CourtSide account is ready. You can now log in and book equipment.`,
-        });
-        message = 'Email verified. Your signup is complete, and a confirmation email has been sent.';
-      } catch (emailError) {
-        console.error('Signup confirmation email delivery failed:', emailError.message);
-      }
-    }
-
-    res.json({ message });
+    res.json({ message: 'Email verified. Your signup is complete. You can now log in.' });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not verify your email. Please try again.' });
@@ -186,13 +191,16 @@ router.post('/forgot-password', async (req, res) => {
   if (typeof email !== 'string' || !EMAIL_PATTERN.test(email.trim())) {
     return res.status(400).json({ error: 'Please enter a valid email address.' });
   }
+  if (!getLocalClientOrigin()) {
+    return res.status(503).json({ error: 'Local password reset links are available only in development on localhost.' });
+  }
   if (!isEmailConfigured()) {
-    return res.status(503).json({ error: 'Password reset email is unavailable. Please try again later.' });
+    return res.status(503).json({ error: 'SMTP email is not configured. Please try again later.' });
   }
 
   const genericMessage = 'If an account exists for that email, a password reset link has been sent.';
   try {
-    const result = await db.query('SELECT UserID FROM Users WHERE Email = $1', [email.trim()]);
+    const result = await db.query('SELECT UserID, Email FROM Users WHERE LOWER(Email) = $1', [email.trim().toLowerCase()]);
     if (result.rowCount === 0) return res.json({ message: genericMessage });
 
     const resetToken = jwt.sign(
@@ -200,22 +208,16 @@ router.post('/forgot-password', async (req, res) => {
       process.env.JWT_SECRET,
       { expiresIn: '30m' }
     );
-    const resetUrl = new URL(
-      '/reset-password',
-      process.env.CLIENT_URL || process.env.CLIENT_ORIGIN || 'http://localhost:5173'
-    );
-    resetUrl.searchParams.set('token', resetToken);
-
+    const resetUrl = createLocalActionUrl('/reset-password', resetToken);
     try {
       await sendEmail({
-        to: email.trim(),
+        to: result.rows[0].email,
         subject: 'Reset your CourtSide password',
-        text: `A password reset was requested for your CourtSide account.\n\nSet a new password using this link:\n${resetUrl.toString()}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
+        text: `A password reset was requested for your CourtSide account.\n\nSet a new password using this link:\n${resetUrl}\n\nThis link expires in 30 minutes. If you did not request this, you can ignore this email.`,
       });
     } catch (emailError) {
       console.error('Password reset email delivery failed:', emailError.message);
     }
-
     res.json({ message: genericMessage });
   } catch (err) {
     console.error(err);
@@ -232,6 +234,7 @@ router.post('/reset-password', async (req, res) => {
   if (!isStrongPassword(newPassword)) {
     return res.status(400).json({ error: 'Password must be at least 8 characters and include uppercase, lowercase, a number and a special character.' });
   }
+
   try {
     const payload = jwt.verify(resetToken, process.env.JWT_SECRET);
     if (payload.purpose !== 'password-reset') throw new Error('Wrong token type');

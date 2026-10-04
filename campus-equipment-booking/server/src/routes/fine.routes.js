@@ -15,7 +15,9 @@ router.get('/mine', requireAuth, async (req, res) => {
        WHERE f.UserID = $1 ORDER BY f.CreatedAt DESC`,
       [req.user.userId]
     );
-    const total = result.rows.reduce((sum, f) => sum + Number(f.amount), 0);
+    const total = result.rows
+      .filter((fine) => !fine.paidstatus)
+      .reduce((sum, fine) => sum + Number(fine.amount), 0);
     res.json({ fines: result.rows, total });
   } catch (err) {
     console.error(err);
@@ -39,6 +41,27 @@ router.get('/', requireAuth, requireRole('Admin'), async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Could not fetch fines.' });
+  }
+});
+
+// PATCH /api/fines/mine/:id/pay — Student marks their own fine as paid
+router.patch('/mine/:id/pay', requireAuth, requireRole('Student'), async (req, res) => {
+  try {
+    const result = await db.query(
+      `UPDATE Fines SET PaidStatus = TRUE
+       WHERE FineID = $1 AND UserID = $2 AND PaidStatus = FALSE
+       RETURNING *`,
+      [req.params.id, req.user.userId]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Unpaid fine not found.' });
+    await db.query('INSERT INTO Notifications (UserID, Message) VALUES ($1,$2)', [
+      req.user.userId,
+      `Fine ${result.rows[0].fineid} marked as paid.`,
+    ]);
+    res.json({ message: 'Fine marked as paid.', fine: result.rows[0] });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not update fine status.' });
   }
 });
 

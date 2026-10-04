@@ -2,12 +2,14 @@ import { useState } from 'react';
 
 export default function ReturnModal({ booking, onClose, onSubmit }) {
   const [condition, setCondition] = useState('Good');
+  const [damageDescription, setDamageDescription] = useState('');
+  const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setSubmitting(true);
-    await onSubmit({ bookingId: booking.bookingid, equipmentCondition: condition });
+    await onSubmit({ bookingId: booking.bookingid, equipmentCondition: condition, damageDescription, file });
     setSubmitting(false);
   }
 
@@ -25,6 +27,21 @@ export default function ReturnModal({ booking, onClose, onSubmit }) {
             <option value="Damaged">Damaged</option>
             <option value="Lost">Lost (not returned)</option>
           </select>
+          {condition === 'Damaged' && (
+            <>
+              <label className="field-label">Damage report</label>
+              <textarea
+                className="input"
+                value={damageDescription}
+                onChange={(e) => setDamageDescription(e.target.value)}
+                required
+                placeholder="Describe the damage found during inspection"
+              />
+              <label className="field-label">Photo (optional)</label>
+              <input className="input" type="file" accept="image/*" onChange={(e) => setFile(e.target.files[0] || null)} />
+              <div className="section-sub">A damage report and fine will be recorded when you confirm this return.</div>
+            </>
+          )}
           <button className="btn-primary" disabled={submitting}>{submitting ? 'Saving…' : 'Confirm Return'}</button>
         </form>
       </div>

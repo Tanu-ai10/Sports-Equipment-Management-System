@@ -5,6 +5,11 @@ const { computeEquipmentStatus } = require('../utils/fines');
 
 const router = express.Router();
 const MAX_ACTIVE = Number(process.env.MAX_ACTIVE_BOOKINGS_PER_STUDENT || 3);
+const ALLOWED_TIME_SLOTS = Array.from({ length: 12 }, (_, index) => {
+  const formatHour = (hour) => `${hour % 12 || 12}:00 ${hour < 12 ? 'AM' : 'PM'}`;
+  const startHour = index + 7;
+  return `${formatHour(startHour)}–${formatHour(startHour + 1)}`;
+});
 
 async function notify(client, userId, message) {
   await client.query('INSERT INTO Notifications (UserID, Message) VALUES ($1,$2)', [userId, message]);
@@ -60,6 +65,9 @@ router.post('/', requireAuth, requireRole('Student'), async (req, res) => {
   const { equipmentId, date, timeSlot, quantity, purpose } = req.body;
   if (!equipmentId || !date || !timeSlot || !quantity || !purpose) {
     return res.status(400).json({ error: 'equipmentId, date, timeSlot, quantity and purpose are required.' });
+  }
+  if (!ALLOWED_TIME_SLOTS.includes(timeSlot)) {
+    return res.status(400).json({ error: 'Choose a one-hour time slot between 7:00 AM and 7:00 PM.' });
   }
   const qty = parseInt(quantity, 10);
   if (qty < 1) return res.status(400).json({ error: 'quantity must be at least 1.' });

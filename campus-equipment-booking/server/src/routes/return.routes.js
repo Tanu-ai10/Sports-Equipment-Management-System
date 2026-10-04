@@ -1,14 +1,16 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
-const { computeEquipmentStatus, FINE_LOST } = require('../utils/fines');
+const upload = require('../middleware/upload');
+const { computeEquipmentStatus, FINE_DAMAGE, FINE_LOST } = require('../utils/fines');
 
 const router = express.Router();
 
 // POST /api/returns — Coordinator/Admin marks a booking's equipment as returned
 // body: { bookingId, equipmentCondition: 'Good'|'Fair'|'Damaged'|'Lost' }
-router.post('/', requireAuth, requireRole('Admin'), async (req, res) => {
+router.post('/', requireAuth, requireRole('Admin'), upload.single('image'), async (req, res) => {
   const { bookingId, equipmentCondition } = req.body;
+  const damageDescription = typeof req.body.damageDescription === 'string' ? req.body.damageDescription.trim() : '';
   if (!bookingId || !equipmentCondition) {
     return res.status(400).json({ error: 'bookingId and equipmentCondition are required.' });
   }
@@ -16,6 +18,13 @@ router.post('/', requireAuth, requireRole('Admin'), async (req, res) => {
   if (!validConditions.includes(equipmentCondition)) {
     return res.status(400).json({ error: `equipmentCondition must be one of: ${validConditions.join(', ')}` });
   }
+  if (equipmentCondition === 'Damaged' && !damageDescription) {
+    return res.status(400).json({ error: 'A damage description is required when equipment is damaged.' });
+  }
+  if (damageDescription.length > 2000) {
+    return res.status(400).json({ error: 'Damage description must be 2000 characters or fewer.' });
+  }
+  const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
 
   const client = await db.getClient();
   try {
@@ -36,7 +45,9 @@ router.post('/', requireAuth, requireRole('Admin'), async (req, res) => {
     );
 
     let newQuantity = eq.quantity;
-    let newAvailable = eq.availablequantity + booking.quantity;
+    let newAvailable = equipmentCondition === 'Damaged'
+      ? eq.availablequantity
+      : eq.availablequantity + booking.quantity;
     let newCondition = eq.condition;
 
     if (equipmentCondition === 'Lost') {
@@ -51,8 +62,20 @@ router.post('/', requireAuth, requireRole('Admin'), async (req, res) => {
         [booking.userid, `Booking ${booking.bookingid} was marked as Lost. A fine of ₹${FINE_LOST} has been applied.`]
       );
     } else if (equipmentCondition === 'Damaged') {
-      newCondition = eq.condition === 'New' || eq.condition === 'Good' ? 'Fair' : eq.condition;
-      // Fine for damage is applied once a coordinator confirms a formal damage report (see damage.routes.js)
+      newCondition = 'Under Repair';
+      const reportRes = await client.query(
+        `INSERT INTO DamageReports (EquipmentID, UserID, BookingID, Description, Image, Status)
+         VALUES ($1,$2,$3,$4,$5,'Confirmed') RETURNING ReportID`,
+        [eq.equipmentid, booking.userid, bookingId, damageDescription, imagePath]
+      );
+      await client.query(
+        `INSERT INTO Fines (BookingID, UserID, Reason, Amount) VALUES ($1,$2,'Damage',$3)`,
+        [bookingId, booking.userid, FINE_DAMAGE]
+      );
+      await client.query(
+        `INSERT INTO Notifications (UserID, Message) VALUES ($1,$2)`,
+        [booking.userid, `Damage report ${reportRes.rows[0].reportid} was recorded by the admin. A fine of ₹${FINE_DAMAGE} has been applied.`]
+      );
     }
 
     const newStatus = computeEquipmentStatus({ quantity: newQuantity, availableQuantity: newAvailable, condition: newCondition });

@@ -105,14 +105,28 @@ router.patch('/:id', requireAuth, requireRole('Admin'), upload.single('image'), 
     if (current.rowCount === 0) return res.status(404).json({ error: 'Equipment not found.' });
     const eq = current.rows[0];
 
-    const name = req.body.name ?? eq.name;
-    const sport = req.body.sport ?? eq.sport;
+    const name = (req.body.name ?? eq.name).trim();
+    const sport = (req.body.sport ?? eq.sport).trim();
     const description = req.body.description ?? eq.description;
-    const quantity = req.body.quantity !== undefined ? parseInt(req.body.quantity, 10) : eq.quantity;
-    const availableQuantity = req.body.availableQuantity !== undefined ? parseInt(req.body.availableQuantity, 10) : eq.availablequantity;
+    const quantity = req.body.quantity !== undefined ? Number(req.body.quantity) : eq.quantity;
+    const checkedOutQuantity = eq.quantity - eq.availablequantity;
+    const availableQuantity = req.body.availableQuantity !== undefined
+      ? Number(req.body.availableQuantity)
+      : quantity - checkedOutQuantity;
     const condition = req.body.condition ?? eq.condition;
     const location = req.body.location ?? eq.location;
     const image = req.file ? `/uploads/${req.file.filename}` : (req.body.imageUrl ?? eq.image);
+
+    if (!name || !sport) return res.status(400).json({ error: 'Name and sport are required.' });
+    if (!Number.isInteger(quantity) || quantity < 1) {
+      return res.status(400).json({ error: 'Quantity must be a positive whole number.' });
+    }
+    if (quantity < checkedOutQuantity) {
+      return res.status(409).json({ error: `Quantity cannot be less than ${checkedOutQuantity} unit(s) currently checked out.` });
+    }
+    if (!Number.isInteger(availableQuantity) || availableQuantity < 0 || availableQuantity > quantity) {
+      return res.status(400).json({ error: 'Available quantity must be between zero and total quantity.' });
+    }
 
     const status = computeEquipmentStatus({ quantity, availableQuantity, condition });
 

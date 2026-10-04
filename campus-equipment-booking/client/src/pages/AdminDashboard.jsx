@@ -25,6 +25,7 @@ export default function AdminDashboard() {
   const [equipment, setEquipment] = useState([]);
   const [fines, setFines] = useState({ fines: [], total: 0 });
   const [showAddEq, setShowAddEq] = useState(false);
+  const [editingEquipment, setEditingEquipment] = useState(null);
   const [toast, showToast] = useToast();
 
   const loadOverview = useCallback(async () => {
@@ -40,7 +41,13 @@ export default function AdminDashboard() {
     setFines(res.data);
   }, []);
 
-  useEffect(() => { loadOverview(); loadEquipment(); loadFines(); }, [loadOverview, loadEquipment, loadFines]);
+  useEffect(() => { loadOverview(); loadEquipment(); }, [loadOverview, loadEquipment]);
+  useEffect(() => {
+    if (tab !== 'fines') return undefined;
+    loadFines();
+    const interval = setInterval(loadFines, 15000);
+    return () => clearInterval(interval);
+  }, [tab, loadFines]);
 
   async function downloadReport() {
     try {
@@ -59,7 +66,7 @@ export default function AdminDashboard() {
     }
   }
 
-  async function handleAddEquipment({ name, sport, quantity, location, description, file }) {
+  async function handleEquipmentSubmit({ equipmentId, name, sport, quantity, location, description, condition, file }) {
     try {
       const form = new FormData();
       form.append('name', name);
@@ -67,10 +74,16 @@ export default function AdminDashboard() {
       form.append('quantity', quantity);
       form.append('location', location);
       form.append('description', description);
+      form.append('condition', condition);
       if (file) form.append('image', file);
-      await api.post('/equipment', form, { headers: { 'Content-Type': 'multipart/form-data' } });
-      showToast('Equipment added to catalog.');
+      if (equipmentId) {
+        await api.patch(`/equipment/${equipmentId}`, form);
+      } else {
+        await api.post('/equipment', form);
+      }
+      showToast(equipmentId ? 'Equipment updated.' : 'Equipment added to catalog.');
       setShowAddEq(false);
+      setEditingEquipment(null);
       loadEquipment();
       loadOverview();
     } catch (err) {
@@ -81,12 +94,19 @@ export default function AdminDashboard() {
   return (
     <Shell tabs={TABS} activeTab={tab} onTabChange={setTab}>
       {tab === 'overview' && <OverviewTab overview={overview} onDownloadReport={downloadReport} />}
-      {tab === 'equipment' && <EquipmentTab equipment={equipment} onAdd={() => setShowAddEq(true)} />}
+      {tab === 'equipment' && <EquipmentTab equipment={equipment} onAdd={() => setShowAddEq(true)} onEdit={setEditingEquipment} />}
       {tab === 'bookings' && <BookingsTab overview={overview} />}
       {tab === 'fines' && <FinesTab fines={fines} />}
       {['requests', 'today', 'due', 'overdue', 'damage'].includes(tab) && <OperationsPanel tab={tab} />}
 
-      {showAddEq && <AddEquipmentModal onClose={() => setShowAddEq(false)} onSubmit={handleAddEquipment} />}
+      {showAddEq && <AddEquipmentModal onClose={() => setShowAddEq(false)} onSubmit={handleEquipmentSubmit} />}
+      {editingEquipment && (
+        <AddEquipmentModal
+          equipment={editingEquipment}
+          onClose={() => setEditingEquipment(null)}
+          onSubmit={handleEquipmentSubmit}
+        />
+      )}
       <Toast message={toast} />
     </Shell>
   );
@@ -127,7 +147,7 @@ function OverviewTab({ overview, onDownloadReport }) {
   );
 }
 
-function EquipmentTab({ equipment, onAdd }) {
+function EquipmentTab({ equipment, onAdd, onEdit }) {
   return (
     <>
       <div className="section-head">
@@ -136,7 +156,7 @@ function EquipmentTab({ equipment, onAdd }) {
       </div>
       <div className="table-wrap">
         <table>
-          <thead><tr><th>ID</th><th>Name</th><th>Sport</th><th>Qty / Available</th><th>Condition</th><th>Location</th><th>Status</th></tr></thead>
+          <thead><tr><th>ID</th><th>Name</th><th>Sport</th><th>Qty / Available</th><th>Condition</th><th>Location</th><th>Status</th><th>Actions</th></tr></thead>
           <tbody>
             {equipment.map((e) => (
               <tr key={e.equipmentid}>
@@ -145,6 +165,7 @@ function EquipmentTab({ equipment, onAdd }) {
                 <td>{e.quantity} / {e.availablequantity}</td>
                 <td>{e.condition}</td><td>{e.location}</td>
                 <td><span className={`status-pill status-${e.status}`}>{e.status}</span></td>
+                <td><button className="row-btn neutral" onClick={() => onEdit(e)}>Edit</button></td>
               </tr>
             ))}
           </tbody>

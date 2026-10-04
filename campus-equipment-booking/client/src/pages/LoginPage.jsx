@@ -14,7 +14,9 @@ export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const [mode, setMode] = useState('login'); // 'login' | 'register' | 'forgot'
+  const [mode, setMode] = useState(() => (
+    new URLSearchParams(window.location.search).get('mode') === 'register' ? 'register' : 'login'
+  ));
   const [role, setRole] = useState('Student');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -25,6 +27,7 @@ export default function LoginPage() {
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
+  const [verificationPending, setVerificationPending] = useState(false);
   const [loading, setLoading] = useState(false);
   const passwordIsStrong = isStrongPassword(password);
 
@@ -36,7 +39,9 @@ export default function LoginPage() {
       const dest = user.role === 'Student' ? '/student' : '/admin';
       navigate(dest);
     } catch (err) {
-      setError(errorMessage(err, 'Login failed. Check your email and password.'));
+      setError(err.response?.status === 401
+        ? 'Email or password is incorrect. If you already created this account, use Forgot password to reset your password.'
+        : errorMessage(err, 'Login failed. Check your email and password.'));
     } finally {
       setLoading(false);
     }
@@ -58,12 +63,12 @@ export default function LoginPage() {
       );
       setInfo(res.data.message);
       setPassword('');
-      setMode('login');
+      setVerificationPending(true);
     } catch (err) {
       setError(errorMessage(
         err,
         err.code === 'ECONNABORTED'
-          ? 'Signup timed out while contacting the email service. Please try again later.'
+          ? 'Signup timed out while sending the verification email. Please try again.'
           : 'Could not create account.'
       ));
     } finally {
@@ -97,7 +102,7 @@ export default function LoginPage() {
         {error && <div className="error-banner">{error}</div>}
         {info && <div className="error-banner" style={{ background: 'var(--turf-pale)', color: 'var(--turf)' }}>{info}</div>}
 
-        {mode !== 'forgot' && (
+        {mode !== 'forgot' && !verificationPending && (
           <>
             <label className="field-label">Role</label>
             <div className="role-picker">
@@ -115,7 +120,7 @@ export default function LoginPage() {
           </>
         )}
 
-        {mode === 'login' && (
+        {mode === 'login' && !verificationPending && (
           <form onSubmit={handleLogin}>
             <label className="field-label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@college.edu" />
@@ -137,7 +142,7 @@ export default function LoginPage() {
           </form>
         )}
 
-        {mode === 'register' && (
+        {mode === 'register' && !verificationPending && (
           <form onSubmit={handleRegister}>
             <label className="field-label">Full name</label>
             <input className="input" value={name} onChange={(e) => setName(e.target.value)} required placeholder="e.g. Tanu Sharma" />
@@ -172,13 +177,26 @@ export default function LoginPage() {
           </form>
         )}
 
-        {mode === 'forgot' && (
+        {mode === 'forgot' && !verificationPending && (
           <form onSubmit={handleForgot}>
             <label className="field-label">Email</label>
             <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@college.edu" />
             <button className="btn-primary" disabled={loading}>{loading ? 'Sending…' : 'Send reset link'}</button>
             <button type="button" className="forgot-link" onClick={() => { setMode('login'); setError(''); setInfo(''); }}>Back to log in</button>
           </form>
+        )}
+
+        {verificationPending && (
+          <div>
+            <div className="login-sub">Check your inbox for the verification link. You must verify your email before logging in.</div>
+            <button
+              type="button"
+              className="forgot-link"
+              onClick={() => { setVerificationPending(false); setMode('login'); setError(''); setInfo(''); }}
+            >
+              Return to log in
+            </button>
+          </div>
         )}
 
       </div>

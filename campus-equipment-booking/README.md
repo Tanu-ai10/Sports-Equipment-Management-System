@@ -61,12 +61,12 @@ Health check: `GET /api/health`.
 
 ### Email verification
 
-New accounts must verify their email before logging in. Configure `SMTP_HOST`,
-`SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, and `SMTP_FROM` in `server/.env`, then
-set `CLIENT_URL` to the address serving the frontend. Signup sends a 24-hour
-verification link; confirming it verifies the address and sends a signup
-success email. Existing accounts remain verified. Use an SMTP app password
-when required by your email provider.
+New accounts must verify their email before logging in. The app runs locally
+and sends verification links through SMTP. Configure `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_SECURE`, `SMTP_USER`, and `SMTP_PASS` in `server/.env`; for Gmail, use an
+app password. The link points back to the local frontend. Verification links
+expire after 24 hours; reset links expire after 30 minutes. Existing accounts
+remain verified.
 
 An overdue-sweep job runs once at boot and then every 30 minutes — it flags
 `Issued` bookings whose return date has passed, moves them to `Overdue`, and
