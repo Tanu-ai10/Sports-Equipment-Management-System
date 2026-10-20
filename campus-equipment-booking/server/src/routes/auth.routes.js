@@ -217,6 +217,7 @@ router.post('/forgot-password', async (req, res) => {
       });
     } catch (emailError) {
       console.error('Password reset email delivery failed:', emailError.message);
+      return res.status(503).json({ error: 'Could not send a password reset email. Please try again later.' });
     }
     res.json({ message: genericMessage });
   } catch (err) {

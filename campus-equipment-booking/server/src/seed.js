@@ -22,17 +22,13 @@ const SPORTS_EQUIPMENT = [
 async function seed({ closeConnection = true } = {}) {
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
+    const existingUsers = await client.query('SELECT 1 FROM Users LIMIT 1');
+    if (existingUsers.rowCount > 0) {
+      console.log('✔ Existing users found; skipping seed data.');
+      return true;
+    }
 
-    // Wipe existing demo data (safe for a fresh dev DB only)
-    // pg-mem does not support multi-table TRUNCATE with CASCADE, so clear tables individually.
-    await client.query('DELETE FROM Fines');
-    await client.query('DELETE FROM Notifications');
-    await client.query('DELETE FROM DamageReports');
-    await client.query('DELETE FROM Returns');
-    await client.query('DELETE FROM Bookings');
-    await client.query('DELETE FROM Equipment');
-    await client.query('DELETE FROM Users');
+    await client.query('BEGIN');
 
     const passwordHash = await bcrypt.hash('password123', 10);
 
@@ -71,7 +67,7 @@ async function seed({ closeConnection = true } = {}) {
     return false;
   } finally {
     client.release();
-    if (closeConnection) {
+    if (closeConnection && process.env.USE_PG_MEM !== 'true') {
       await pool.end();
     }
   }

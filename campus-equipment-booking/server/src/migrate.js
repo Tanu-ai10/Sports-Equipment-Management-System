@@ -14,7 +14,9 @@ async function migrate() {
     process.exitCode = 1;
     return false;
   } finally {
-    await pool.end();
+    if (process.env.USE_PG_MEM !== 'true') {
+      await pool.end();
+    }
   }
 }
 

@@ -37,7 +37,10 @@ async function sendEmail({ to, subject, text }) {
     },
   });
 
-  await transporter.sendMail({ from: smtpUser, to, subject, text });
+  const result = await transporter.sendMail({ from: smtpUser, to, subject, text });
+  if (result.rejected?.length) {
+    throw new Error('SMTP rejected the recipient address.');
+  }
 }
 
 function getLocalClientOrigin() {

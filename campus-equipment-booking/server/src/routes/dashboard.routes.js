@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
+const { getAppDate } = require('../utils/appDate');
 
 const router = express.Router();
 const REPORT_COLUMNS = [
@@ -45,9 +46,10 @@ router.get('/student', requireAuth, requireRole('Student'), async (req, res) => 
 // GET /api/dashboard/coordinator — today's bookings, due today, overdue, damage reports
 router.get('/operations', requireAuth, requireRole('Admin'), async (req, res) => {
   try {
+    const today = getAppDate();
     const [todayCount, dueCount, overdueCount, damageCount] = await Promise.all([
-      db.query(`SELECT COUNT(*) FROM Bookings WHERE Date = CURRENT_DATE AND Status IN ('Approved','Issued')`),
-      db.query(`SELECT COUNT(*) FROM Bookings WHERE Status='Issued' AND Date = CURRENT_DATE`),
+      db.query(`SELECT COUNT(*) FROM Bookings WHERE Date = $1 AND Status IN ('Approved','Issued')`, [today]),
+      db.query(`SELECT COUNT(*) FROM Bookings WHERE Status='Issued' AND Date = $1`, [today]),
       db.query(`SELECT COUNT(*) FROM Bookings WHERE Status='Overdue'`),
       db.query(`SELECT COUNT(*) FROM DamageReports WHERE Status='Under Review'`),
     ]);
@@ -69,7 +71,10 @@ router.get('/admin', requireAuth, requireRole('Admin'), async (req, res) => {
     const [totalEq, maintenance, monthlyBookings, fineTotal, mostBorrowed, bySport, byStatus] = await Promise.all([
       db.query(`SELECT COALESCE(SUM(Quantity),0) AS total FROM Equipment`),
       db.query(`SELECT COUNT(*) FROM Equipment WHERE Status='Maintenance'`),
-      db.query(`SELECT COUNT(*) FROM Bookings WHERE date_trunc('month', CreatedAt) = date_trunc('month', now())`),
+      db.query(`SELECT COUNT(*)
+                FROM Bookings
+                WHERE EXTRACT(YEAR FROM CreatedAt) = EXTRACT(YEAR FROM NOW())
+                  AND EXTRACT(MONTH FROM CreatedAt) = EXTRACT(MONTH FROM NOW())`),
       db.query(`SELECT COALESCE(SUM(Amount),0) AS total FROM Fines`),
       db.query(`
         SELECT e.EquipmentID, e.Name, COALESCE(SUM(b.Quantity),0) AS total_booked

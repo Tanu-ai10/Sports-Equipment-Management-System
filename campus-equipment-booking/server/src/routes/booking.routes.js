@@ -2,6 +2,7 @@ const express = require('express');
 const db = require('../db');
 const { requireAuth, requireRole } = require('../middleware/auth');
 const { computeEquipmentStatus } = require('../utils/fines');
+const { getAppDate } = require('../utils/appDate');
 
 const router = express.Router();
 const MAX_ACTIVE = Number(process.env.MAX_ACTIVE_BOOKINGS_PER_STUDENT || 3);
@@ -38,8 +39,14 @@ router.get('/', requireAuth, requireRole('Admin'), async (req, res) => {
   const params = [];
 
   if (status) { params.push(status); clauses.push(`b.Status = $${params.length}`); }
-  if (date === 'today') { clauses.push(`b.Date = CURRENT_DATE`); }
-  if (dueToday === 'true') { clauses.push(`b.Status = 'Issued' AND b.Date = CURRENT_DATE`); }
+  if (date === 'today') {
+    params.push(getAppDate());
+    clauses.push(`b.Date = $${params.length}`);
+  }
+  if (dueToday === 'true') {
+    params.push(getAppDate());
+    clauses.push(`b.Status = 'Issued' AND b.Date = $${params.length}`);
+  }
   if (overdue === 'true') { clauses.push(`b.Status = 'Overdue'`); }
 
   const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : '';
